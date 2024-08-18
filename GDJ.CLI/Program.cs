@@ -14,3 +14,4 @@ Console.WriteLine($"Hello, {me.DisplayName}");
 
 var result = await spotifyClient.Playlists.GetUsers(me.Id);
 Console.WriteLine(result.Total);
+

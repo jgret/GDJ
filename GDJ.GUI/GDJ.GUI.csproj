@@ -8,4 +8,9 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\GDJ.Auth\GDJ.Auth.csproj" />
+    <ProjectReference Include="..\GDJ.Service\GDJ.Service.csproj" />
+  </ItemGroup>
+
 </Project>
