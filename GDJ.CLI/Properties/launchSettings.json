@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "GDJ.CLI": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "GDJ_SPOTIFY_CLIENT_ID": "b903ea56e5154c0ab0b1d7a9b86c3f0d"
+      }
+    }
+  }
+}
