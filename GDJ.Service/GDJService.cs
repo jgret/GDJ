@@ -1,4 +1,5 @@
 ﻿using SpotifyAPI.Web;
+using System.Reflection.Metadata.Ecma335;
 using System.Timers;
 
 namespace GDJ.Service
@@ -6,74 +7,126 @@ namespace GDJ.Service
 
     public class GDJService : IGDJService
     {
-        public static int API_POLL_INTERVAL = 5000;
+        private static int API_POLL_INTERVAL_MS = 5000;
+        private static int BUFFER_TIME_MS = 2500;
+        private static int Q_MAX_TRACKS = 1;
 
+        // Dictionary of playlist id and counter of how many times it has been played
         private Dictionary<string, int> playlistStats;
-        private List<Playlist> playlists; // Playlists with mixRatios
 
-        private System.Timers.Timer pollPlayback;
+        // Playlists with mixRatios (Updated by the GDJ.CLI)
+        private List<Playlist> playlists; 
+
+        private System.Timers.Timer service;
         private SpotifyClient client;
 
         public GDJService(SpotifyClient client)
         {
             playlistStats = new Dictionary<string, int>();
 
-            pollPlayback = new System.Timers.Timer(API_POLL_INTERVAL);
-            pollPlayback.Elapsed += TimerCallback;
-            pollPlayback.AutoReset = true;
-            pollPlayback.Enabled = true; // Start the polling Timer
+            service = new System.Timers.Timer(API_POLL_INTERVAL_MS);
+            service.Elapsed += ServiceCallback;
+            service.AutoReset = true;
+            service.Enabled = true; // Start the polling Timer
 
             this.client = client;
             playlists = new List<Playlist>();
-        }
-
-        private async void GetNext()
-        {
-            // Calc Next Playlist
         }
 
         public void UpdatePlaylists(List<Playlist> playlists)
         {
             this.playlists.Clear();
             this.playlists.AddRange(playlists);
-            
-            foreach (var item in playlistStats.Keys)
+
+            foreach (var id in playlistStats.Keys.ToList())
             {
-                if(!playlists.Any(p => p.Id == item))
+                // Disabled playlists are removed from the dictionary
+                if(playlists.All(p => p.Id != id))
                 {
-                    playlistStats.Remove(item);
+                    playlistStats.Remove(id);
                 }
+                // New playlist is available: Reset counters to 0
                 else
                 {
-                    playlistStats[item] = 0;
+                    playlistStats[id] = 0;
                 }
             }
 
-            foreach (var item in playlists)
+            // Add new playlists to the dictionary
+            foreach (var playlist in playlists)
             {
-                if(!playlistStats.ContainsKey(item.Id))
+                if (!playlistStats.ContainsKey(playlist.Id!))
                 {
-                    playlistStats[item.Id] = 0;
+                    playlistStats.Add(playlist.Id!, 0); // playlistStats[playlist.Id] = 0; also works
                 }
             }
         }
 
-
-        private async void TimerCallback(object? sender, ElapsedEventArgs e)
+        private async void ServiceCallback(object? sender, ElapsedEventArgs e)
         {
-            var currentTrack = await client.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest());
+            var currPlaying = await client.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest());
 
-            if(currentTrack.Item is FullTrack fullTrack)
+            if (currPlaying.Item is FullTrack currTrack)
             {
-                if(currentTrack.ProgressMs >= fullTrack.DurationMs)
+                if (currPlaying.ProgressMs >= currTrack.DurationMs - BUFFER_TIME_MS) // Track is about to end
                 {
-                    var q = await client.Player.GetQueue();
-                    if (q.Queue.Count <= 1)
+                    var q = (await client.Player.GetQueue()).Queue;
+                    if (q.Count <= Q_MAX_TRACKS)
                     {
                         GetNext();
                     }
                 }
             }
+        }
+
+        private async void GetNext()
+        {
+            var nextPlaylistId = GetNextPlaylistId();
+            FullTrack? randTrack = await GetRandTrack(nextPlaylistId);
+            if (randTrack is null)
+            {
+                // Remove empty playlist from the list
+                UpdatePlaylists(playlists.Where(p => p.Id != nextPlaylistId).ToList());
+                return;
+            }
+
+            // Check if the random track is already in the queue
+            var q = (await client.Player.GetQueue()).Queue;
+            if (q.OfType<FullTrack>().Any(t => t.Id.Equals(randTrack.Id)))
+            {
+                GetNext(); // Try again
+            }
+
+            var isAdded = await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrack.Uri));
+            if (isAdded)
+            {
+                playlistStats[nextPlaylistId]++;
+            }
+        }
+
+        private async Task<FullTrack?> GetRandTrack(string playlistId)
+        {
+            var items = (await client.Playlists.GetItems(playlistId)).Items;
+
+            if (items == null || items.Count == 0)
+            {
+                return null;
+            }
+
+            Random rand = new Random();
+            var randIdx = rand.Next(0, items.Count);
+            var randTrack = items[randIdx].Track;
+
+            return randTrack as FullTrack;
+        }
+
+        private string GetNextPlaylistId()
+        {
+            // Get the playlist id with the lowest score: (score = counter * (1 - mixRatio))
+            return playlists
+                .Select(p => new KeyValuePair<string, double>(p.Id!, playlistStats[p.Id!] * (1 - p.MixRatio)))
+                .OrderBy(kvp => kvp.Value)
+                .FirstOrDefault().Key;
         }
     }
 }
