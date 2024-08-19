@@ -95,6 +95,7 @@ namespace GDJ.Service
             if (q.OfType<FullTrack>().Any(t => t.Id.Equals(randTrack.Id)))
             {
                 GetNext(); // Try again
+                return;
             }
 
             var isAdded = await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrack.Uri));
