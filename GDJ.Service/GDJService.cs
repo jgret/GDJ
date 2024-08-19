@@ -27,7 +27,6 @@ namespace GDJ.Service
             service = new System.Timers.Timer(API_POLL_INTERVAL_MS);
             service.Elapsed += ServiceCallback;
             service.AutoReset = true;
-            service.Enabled = true; // Start the polling Timer
 
             this.client = client;
             playlists = new List<Playlist>();
@@ -36,7 +35,10 @@ namespace GDJ.Service
         public void UpdatePlaylists(List<Playlist> playlists)
         {
             this.playlists.Clear();
-            this.playlists.AddRange(playlists);
+            this.playlists.AddRange(playlists ?? new List<Playlist>());
+
+            // the service is disabled if all playlists are disabled or provided playlist List is null
+            serivce.Enabled = (this.playlists.Count != 0);
 
             foreach (var id in playlistStats.Keys.ToList())
             {
@@ -124,7 +126,7 @@ namespace GDJ.Service
         private string GetNextPlaylistId()
         {
             // Get the playlist id with the lowest score: (score = counter * (1 - mixRatio))
-            return playlists
+            return playlists // playlists is never empty-> Checked in UpdatePlaylists() 
                 .Select(p => new KeyValuePair<string, double>(p.Id!, playlistStats[p.Id!] * (1 - p.MixRatio)))
                 .OrderBy(kvp => kvp.Value)
                 .FirstOrDefault().Key;
