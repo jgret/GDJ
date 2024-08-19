@@ -22,14 +22,14 @@ namespace GDJ.Service
 
         public GDJService(SpotifyClient client)
         {
+            this.client = client;
+            
             playlistStats = new Dictionary<string, int>();
+            playlists = new List<Playlist>();
 
             service = new System.Timers.Timer(API_POLL_INTERVAL_MS);
             service.Elapsed += ServiceCallback;
             service.AutoReset = true;
-
-            this.client = client;
-            playlists = new List<Playlist>();
         }
 
         public void UpdatePlaylists(List<Playlist> playlists)
@@ -38,7 +38,7 @@ namespace GDJ.Service
             this.playlists.AddRange(playlists ?? new List<Playlist>());
 
             // the service is disabled if all playlists are disabled or provided playlist List is null
-            serivce.Enabled = (this.playlists.Count != 0);
+            serivce.Enabled = this.playlists.Count != 0;
 
             foreach (var id in playlistStats.Keys.ToList())
             {
@@ -87,7 +87,7 @@ namespace GDJ.Service
             FullTrack? randTrack = await GetRandTrack(nextPlaylistId);
             if (randTrack is null)
             {
-                // Remove empty playlist from the list
+                // Remove empty playlist from the list (Or if the playlist contained an Episode -> don't use Playists with episodes)
                 UpdatePlaylists(playlists.Where(p => p.Id != nextPlaylistId).ToList());
                 return;
             }
@@ -97,6 +97,7 @@ namespace GDJ.Service
             if (q.OfType<FullTrack>().Any(t => t.Id.Equals(randTrack.Id)))
             {
                 GetNext(); // Try again
+                // TODO: test with edge cases -> potential recursive loop if a playlist with only one track is enabled
                 return;
             }
 
@@ -110,7 +111,6 @@ namespace GDJ.Service
         private async Task<FullTrack?> GetRandTrack(string playlistId)
         {
             var items = (await client.Playlists.GetItems(playlistId)).Items;
-
             if (items == null || items.Count == 0)
             {
                 return null;
@@ -126,7 +126,7 @@ namespace GDJ.Service
         private string GetNextPlaylistId()
         {
             // Get the playlist id with the lowest score: (score = counter * (1 - mixRatio))
-            return playlists // playlists is never empty-> Checked in UpdatePlaylists() 
+            return playlists // playlists is never empty -> Checked in UpdatePlaylists() 
                 .Select(p => new KeyValuePair<string, double>(p.Id!, playlistStats[p.Id!] * (1 - p.MixRatio)))
                 .OrderBy(kvp => kvp.Value)
                 .FirstOrDefault().Key;
