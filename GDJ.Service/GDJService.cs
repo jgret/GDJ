@@ -1,4 +1,6 @@
-﻿using SpotifyAPI.Web;
+﻿using Newtonsoft.Json;
+using SpotifyAPI.Web;
+using SpotifyAPI.Web.Http;
 using System.Reflection.Metadata.Ecma335;
 using System.Timers;
 
@@ -7,18 +9,21 @@ namespace GDJ.Service
 
     public class GDJService : IGDJService
     {
-        private static int API_POLL_INTERVAL_MS = 5000;
-        private static int BUFFER_TIME_MS = 2500;
+        private static int API_POLL_INTERVAL_MS = 180000;
+        private static int BUFFER_TIME_MS = 6000;
         private static int Q_MAX_TRACKS = 1;
 
         // Dictionary of playlist id and counter of how many times it has been played
         private Dictionary<string, int> playlistStats;
+        private int totalSongsPlayed;
 
         // Playlists with mixRatios (Updated by the GDJ.CLI)
         private List<Playlist> playlists; 
 
         private System.Timers.Timer service;
         private SpotifyClient client;
+
+        private string deviceId;
 
         public GDJService(SpotifyClient client)
         {
@@ -30,20 +35,24 @@ namespace GDJ.Service
             service = new System.Timers.Timer(API_POLL_INTERVAL_MS);
             service.Elapsed += ServiceCallback;
             service.AutoReset = true;
+            deviceId = string.Empty;
+            totalSongsPlayed = 0;
         }
 
-        public void UpdatePlaylists(List<Playlist> playlists)
+        public async Task InitDevice()
         {
-            this.playlists.Clear();
-            this.playlists.AddRange(playlists ?? new List<Playlist>());
+             deviceId = (await client.Player.GetAvailableDevices()).Devices[0].Id;
+        }
 
-            // the service is disabled if all playlists are disabled or provided playlist List is null
-            serivce.Enabled = this.playlists.Count != 0;
+        public void UpdatePlaylists(List<Playlist> pl)
+        {
+            playlists.Clear();
+            playlists.AddRange(pl ?? new List<Playlist>());
 
             foreach (var id in playlistStats.Keys.ToList())
             {
                 // Disabled playlists are removed from the dictionary
-                if(playlists.All(p => p.Id != id))
+                if(!playlists.Any(p => p.Id == id))
                 {
                     playlistStats.Remove(id);
                 }
@@ -55,36 +64,42 @@ namespace GDJ.Service
             }
 
             // Add new playlists to the dictionary
-            foreach (var playlist in playlists)
+            foreach (Playlist playlist in playlists)
             {
-                if (!playlistStats.ContainsKey(playlist.Id!))
+                if (!playlistStats.ContainsKey(playlist.Id))
                 {
-                    playlistStats.Add(playlist.Id!, 0); // playlistStats[playlist.Id] = 0; also works
+                    playlistStats[playlist.Id] = 0;
                 }
             }
+
+            // the service is disabled if all playlists are disabled or provided playlist List is null
+            service.Enabled = playlists.Count != 0;
         }
 
+        // Timer Callback
         private async void ServiceCallback(object? sender, ElapsedEventArgs e)
         {
-            var currPlaying = await client.Player.GetCurrentlyPlaying(new PlayerCurrentlyPlayingRequest());
 
-            if (currPlaying.Item is FullTrack currTrack)
+            var retry = false;
+            do
             {
-                if (currPlaying.ProgressMs >= currTrack.DurationMs - BUFFER_TIME_MS) // Track is about to end
+                try
                 {
-                    var q = (await client.Player.GetQueue()).Queue;
-                    if (q.Count <= Q_MAX_TRACKS)
-                    {
-                        GetNext();
-                    }
+                    await GetNextAsync();
+                }
+                catch (APITooManyRequestsException ex)
+                {
+                    await Task.Delay(ex.RetryAfter);
+                    retry = true;
                 }
             }
+            while (retry);
         }
 
-        private async void GetNext()
+        private async Task GetNextAsync()
         {
             var nextPlaylistId = GetNextPlaylistId();
-            FullTrack? randTrack = await GetRandTrack(nextPlaylistId);
+            FullTrack? randTrack = await GetRandTrackAsync(nextPlaylistId);
             if (randTrack is null)
             {
                 // Remove empty playlist from the list (Or if the playlist contained an Episode -> don't use Playists with episodes)
@@ -96,19 +111,27 @@ namespace GDJ.Service
             var q = (await client.Player.GetQueue()).Queue;
             if (q.OfType<FullTrack>().Any(t => t.Id.Equals(randTrack.Id)))
             {
-                GetNext(); // Try again
+                await GetNextAsync(); // Try again
                 // TODO: test with edge cases -> potential recursive loop if a playlist with only one track is enabled
                 return;
             }
 
-            var isAdded = await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrack.Uri));
-            if (isAdded)
+            try
             {
-                playlistStats[nextPlaylistId]++;
+                var p = new PlayerAddToQueueRequest(randTrack.Uri);
+                p.DeviceId = deviceId;
+
+                await client.Player.AddToQueue(p);
             }
+            catch (JsonReaderException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            playlistStats[nextPlaylistId]++;
+            totalSongsPlayed++;
         }
 
-        private async Task<FullTrack?> GetRandTrack(string playlistId)
+        private async Task<FullTrack?> GetRandTrackAsync(string playlistId, CancellationToken cancellationToken = default)
         {
             var items = (await client.Playlists.GetItems(playlistId)).Items;
             if (items == null || items.Count == 0)
@@ -127,7 +150,7 @@ namespace GDJ.Service
         {
             // Get the playlist id with the lowest score: (score = counter * (1 - mixRatio))
             return playlists // playlists is never empty -> Checked in UpdatePlaylists() 
-                .Select(p => new KeyValuePair<string, double>(p.Id!, playlistStats[p.Id!] * (1 - p.MixRatio)))
+                .Select(p => new KeyValuePair<string, double>(p.Id!, (double) (playlistStats[p.Id!]) * (1.0 - p.MixRatio)))
                 .OrderBy(kvp => kvp.Value)
                 .FirstOrDefault().Key;
         }

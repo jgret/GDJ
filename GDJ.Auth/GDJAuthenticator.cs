@@ -50,7 +50,27 @@ namespace GDJ.Auth
                 {
                     CodeChallenge = challenge,
                     CodeChallengeMethod = "S256",
-                    Scope = new List<string> { UserReadEmail, UserReadPrivate, UserReadPlaybackState, PlaylistReadPrivate, PlaylistReadCollaborative }
+                    Scope = new List<string> {
+                        AppRemoteControl,
+                        PlaylistModifyPrivate,
+                        PlaylistModifyPublic,
+                        PlaylistReadCollaborative,
+                        PlaylistReadPrivate,
+                        Streaming,
+                        UgcImageUpload,
+                        UserFollowModify,
+                        UserFollowRead,
+                        UserLibraryModify,
+                        UserLibraryRead,
+                        UserModifyPlaybackState,
+                        UserReadCurrentlyPlaying,
+                        UserReadEmail,
+                        UserReadPlaybackPosition,
+                        UserReadPlaybackState,
+                        UserReadPrivate,
+                        UserReadRecentlyPlayed,
+                        UserTopRead,
+                    }
                 };
 
                 var uri = request.ToUri();
