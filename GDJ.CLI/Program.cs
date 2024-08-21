@@ -19,22 +19,27 @@ var result = await spotifyClient.Playlists.GetUsers(me.Id);
 Console.WriteLine(result.Total);
 
 
-
-
-var pl = new List<Playlist>
+var pl = new List<PlaylistMix>
 {
-    new Playlist("5faTa2QyuNYFBMUD5IqGjL", 0.60),  // DnB Playlist from Smino
-    new Playlist("3mJgvnYuHwzbCaBue4a47r", 0.30),  // Electronic Playlist from Smino
-    new Playlist("00DG0aSn5EXOvpLhQxGxzc", 0.10),  // House Playlist from Smino
+    new PlaylistMix("5faTa2QyuNYFBMUD5IqGjL", 0.60),  // DnB Playlist from Smino
+    new PlaylistMix("3mJgvnYuHwzbCaBue4a47r", 0.30),  // Electronic Playlist from Smino
+    new PlaylistMix("00DG0aSn5EXOvpLhQxGxzc", 0.10),  // House Playlist from Smino
 };
+
+
 
 var service = new GDJService(spotifyClient);
 service.UpdatePlaylists(pl); // Start service with playlists
 
+while (true)
+{
+    await Task.Delay(1000);
+}
+
 // Test playlist distribution
 
 const int ITERATIONS = 12;
-Dictionary<string, Playlist> dict = pl.ToDictionary(p => p.Id, p => p);
+Dictionary<string, PlaylistMix> dict = pl.ToDictionary(p => p.Id, p => p);
 
 for (int i = 0; i < ITERATIONS; i++)
 {

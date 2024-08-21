@@ -9,9 +9,9 @@ namespace GDJ.Service
     {
         private static int API_POLL_INTERVAL_MS = 7000;
 
-        private int totalSongsPlayed;
 
-        private Dictionary<string, Playlist> activePlaylists; 
+        private Dictionary<string, PlaylistMix> activePlaylists; 
+        private int totalSongsPlayed;
 
         private System.Timers.Timer service;
         private SpotifyClient client;
@@ -24,7 +24,7 @@ namespace GDJ.Service
         {
             this.client = client;
             
-            activePlaylists = new Dictionary<string, Playlist>();
+            activePlaylists = new Dictionary<string, PlaylistMix>();
 
             service = new System.Timers.Timer(API_POLL_INTERVAL_MS);
             service.Elapsed += ServiceCallback;
@@ -37,12 +37,12 @@ namespace GDJ.Service
         // --- Service Control Methods ---
         // -------------------------------
 
-        public void UpdatePlaylists(List<Playlist> pl)
+        public void UpdatePlaylists(List<PlaylistMix> pl)
         {
             activePlaylists.Clear();
-            activePlaylists = (pl ?? new List<Playlist>()).ToDictionary(p => p.Id, p => p);
+            activePlaylists = (pl ?? new List<PlaylistMix>()).ToDictionary(p => p.Id, p => p);
             
-            // the service is disabled if all playlists are disabled or provided playlist List is null
+            // the service is disabled if all playlists are disabled or List is null
             service.Enabled = activePlaylists.Count != 0;
         }
 
@@ -85,7 +85,7 @@ namespace GDJ.Service
 
             // Check if the random track is already in the queue
             var q = (await client.Player.GetQueue()).Queue;
-            if (q.OfType<FullTrack>().Any(t => t.Id.Equals(randTrack.Id)))
+            if (q.OfType<FullTrack>().Any(t => t.Id == randTrack.Id))
             {
                 await GetNextAsync(); // Try again
                 // TODO: test with edge cases -> potential recursive loop if a playlist with only one track is enabled
