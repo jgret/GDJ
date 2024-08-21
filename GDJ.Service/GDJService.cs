@@ -121,7 +121,7 @@ namespace GDJ.Service
                 var p = new PlayerAddToQueueRequest(randTrack.Uri);
                 p.DeviceId = deviceId;
 
-                await client.Player.AddToQueue(p);
+                await client.Player.AddToQueue(p); // <-- This always throws an exception. See Issue #2
             }
             catch (JsonReaderException e)
             {
