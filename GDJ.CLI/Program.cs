@@ -18,7 +18,6 @@ Console.WriteLine($"Hello, {me.DisplayName}");
 var result = await spotifyClient.Playlists.GetUsers(me.Id);
 Console.WriteLine(result.Total);
 
-
 var pl = new List<PlaylistMix>
 {
     new PlaylistMix("5faTa2QyuNYFBMUD5IqGjL", 0.60),  // DnB Playlist from Smino
@@ -26,27 +25,27 @@ var pl = new List<PlaylistMix>
     new PlaylistMix("00DG0aSn5EXOvpLhQxGxzc", 0.10),  // House Playlist from Smino
 };
 
-
-
 var service = new GDJService(spotifyClient);
-service.UpdatePlaylists(pl); // Start service with playlists
 
-while (true)
-{
-    await Task.Delay(1000);
-}
+await service.RefetchLibrary();
+
+service.UpdatePlaylists(pl);    
 
 // Test playlist distribution
 
-const int ITERATIONS = 12;
+const int ITERATIONS = 10;
 Dictionary<string, PlaylistMix> dict = pl.ToDictionary(p => p.Id, p => p);
 
-for (int i = 0; i < ITERATIONS; i++)
+List<string> played = new List<string>();
+
+for (int i = 1; i <= ITERATIONS; i++)
 {
     var key = dict
         .OrderByDescending(kvp => (kvp.Value.MixRatio * i) - kvp.Value.NumPlayed)
         .First().Key;
     dict[key].NumPlayed++;
+
+    Console.WriteLine($"{key}");
 }
 
 foreach (var p in dict)
