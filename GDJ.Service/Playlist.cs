@@ -1,20 +1,21 @@
-﻿using SpotifyAPI.Web;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace GDJ.Service
+﻿namespace GDJ.Service
 {
-    public class Playlist // -> Record?
+    public class Playlist
     {
-        public string Id { get; set; } // Spotify Playlist ID
-        public double MixRatio { get; set; } // Mix ratio of the playlist (0.0 - 1.0)
-        public Playlist(string id, double mixRatio)
+        public string? Name { get; set; }
+        public bool Enabled { get; set; }
+        public List<string>? TrackIds { get; set; }
+        public string Id { get; }
+        public Playlist(string id, string? name = null)
         {
+            if (string.IsNullOrEmpty(id))
+                throw new ArgumentException("Playlist ID cannot be null or empty");
+            if (id.Length != 22)
+                throw new ArgumentException("Playlist ID invalid");
+
             Id = id;
-            MixRatio = mixRatio;
+            Name = name;
+            Enabled = false;
         }
     }
 }
