@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using SpotifyAPI.Web;
+using System.Diagnostics;
 using System.Threading.Channels;
 using System.Timers;
 
@@ -43,43 +44,33 @@ namespace GDJ.Service
         {
             activePlaylists.Clear();
             activePlaylists = (pl ?? []).ToDictionary(p => p.Id, p => p);
-
-            // the service is disabled if all playlists are disabled or List is null
-            service.Enabled = activePlaylists.Count != 0;
+            service.Enabled = activePlaylists.Count != 0; // the service is disabled if all playlists are disabled or List is null
         }
 
         public async Task<List<PlaylistMix>> RefetchLibrary(CancellationToken cancel = default)
         {
             var playlistPage = await client.Playlists.CurrentUsers(cancel);
-
             var playlists = await client.PaginateAll(playlistPage, cancellationToken: cancel);
 
-            foreach (var fp in playlists)
+            foreach (FullPlaylist fp in playlists)
             {
-                var items = await client.PaginateAll(fp.Tracks!, cancellationToken: cancel);
+                var itemsPage = fp.Tracks!;
+                var items = await client.PaginateAll(itemsPage, cancellationToken: cancel);
+
+                var pl = new Playlist(fp.Id!, fp.Name)
+                {
+                    TrackUris = items
+                        .Select(t => t.Track)
+                        .OfType<FullTrack>()
+                        .Distinct()
+                        .Select(t => t.Uri)
+                        .ToList()
+                };
+
+                library.TryAdd(pl.Id, pl);
                 
-                var pl = new Playlist(fp.Id!, fp.Name);
-                pl.TrackIds = items.Select(i => ((FullTrack)i.Track).Id!).ToList();
-
-                library.Add(pl.Id, pl);
             }
-
-            return library.Values.Select(p => new PlaylistMix(p.Id, 0.0)).ToList();
-
-            //await foreach (var playlist in client.Paginate(playlistPage, cancel: cancel))
-            //{
-            //    library.Add(playlist.Id!, new Playlist(playlist.Id!, playlist.Name));
-            //    var items = await client.Playlists.GetItems(playlist.Id!, cancel);
-            //    await foreach (var item in client.Paginate(items, cancel: cancel))
-            //    {
-            //        if (item.Track is FullTrack track)
-            //        {
-            //            library[playlist.Id!].TrackIds!.Add(track.Id!);
-            //        }
-            //        // await Task.Delay(10, cancel); // Avoid rate limiting
-            //    }
-            //    // await Task.Delay(10, cancel); // Avoid rate limiting
-            //}
+            return library.Values.Select(p => new PlaylistMix(p.Id, 0.0, p.Name)).ToList();
         }
 
         // ------------------------------
@@ -112,17 +103,11 @@ namespace GDJ.Service
         private async Task GetNextAsync(CancellationToken cancellationToken = default)
         {
             var nextPlaylistId = GetNextPlaylistId();
-            FullTrack? randTrack = await GetRandTrackAsync(nextPlaylistId, cancellationToken);
-            if (randTrack is null)
-            {
-                // Remove empty playlist from the list (Or if the playlist contained an Episode -> don't use Playists with episodes)
-                UpdatePlaylists(activePlaylists.Values.Where(p => p.Id != nextPlaylistId).ToList());
-                return;
-            }
+            var randTrackUri = GetRandTrackUri(nextPlaylistId, cancellationToken);
 
             // Check if the random track is already in the queue
-            var q = (await client.Player.GetQueue(cancellationToken)).Queue;
-            if (q.OfType<FullTrack>().Any(t => t.Id == randTrack.Id))
+            var q = (await client.Player.GetQueue(cancellationToken)).Queue; // TODO: reduce API calls by caching the queue
+            if (q.OfType<FullTrack>().Any(t => t.Uri == randTrackUri))
             {
                 await GetNextAsync(cancellationToken); // Try again
                 // TODO: test with edge cases -> potential recursive loop if a playlist with only one track is enabled
@@ -131,7 +116,7 @@ namespace GDJ.Service
 
             try
             {
-                await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrack.Uri), cancellationToken); // <-- This always throws an exception. See Issue #2
+                await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrackUri), cancellationToken); // <-- TODO: This always throws an exception. See Issue #2
             }
             catch (JsonReaderException e)
             {
@@ -142,19 +127,14 @@ namespace GDJ.Service
             totalSongsPlayed++;
         }
 
-        private async Task<FullTrack?> GetRandTrackAsync(string playlistId, CancellationToken cancellationToken = default)
+        private string GetRandTrackUri(string playlistId, CancellationToken cancellationToken = default)
         {
-            var items = (await client.Playlists.GetItems(playlistId, cancellationToken)).Items;
-            if (items == null || items.Count == 0)
-            {
-                return null;
-            }
+            var items = library[playlistId].TrackUris;
 
             Random rand = new();
-            var randIdx = rand.Next(0, items.Count);
-            var randTrack = items[randIdx].Track;
+            var randIdx = rand.Next(0, items!.Count);
 
-            return randTrack as FullTrack;
+            return items[randIdx];
         }
 
         private string GetNextPlaylistId()

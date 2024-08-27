@@ -4,7 +4,7 @@
     {
         public double MixRatio { get; set; }    // Mix ratio of the playlist (0.0 - 1.0)
         public int NumPlayed { get; set; }      // Number of times the playlist has been played in current session
-        public PlaylistMix(string id, double mixRatio, string? name = null) : base(id)
+        public PlaylistMix(string id, double mixRatio, string? name = null) : base(id, name)
         {
             MixRatio = mixRatio;
             if(mixRatio < 0.0 || mixRatio > 1.0)
