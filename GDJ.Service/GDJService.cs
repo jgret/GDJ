@@ -30,7 +30,7 @@ namespace GDJ.Service
             activePlaylists = [];
 
             service = new System.Timers.Timer(API_POLL_INTERVAL_MS);
-            service.Elapsed += ServiceCallback;
+            service.Elapsed += ServiceCallbackAsync;
             service.AutoReset = true;
 
             totalSongsPlayed = 0;
@@ -47,37 +47,38 @@ namespace GDJ.Service
             service.Enabled = activePlaylists.Count != 0; // the service is disabled if all playlists are disabled or List is null
         }
 
-        public async Task<List<PlaylistMix>> RefetchLibrary(CancellationToken cancel = default)
+        public async Task<List<PlaylistMix>> RefetchLibraryAsync(CancellationToken cancel = default)
         {
             var playlistPage = await client.Playlists.CurrentUsers(cancel);
             var playlists = await client.PaginateAll(playlistPage, cancellationToken: cancel);
 
             foreach (FullPlaylist fp in playlists)
             {
-                var itemsPage = fp.Tracks!;
-                var items = await client.PaginateAll(itemsPage, cancellationToken: cancel);
+                var fp2 = await client.Playlists.GetItems(fp.Id!, cancel);
+                var items = await client.PaginateAll(fp2, cancellationToken: cancel);
+
+                if (items.Count == 0) continue;
 
                 var pl = new Playlist(fp.Id!, fp.Name)
                 {
                     TrackUris = items
-                        .Select(t => t.Track)
-                        .OfType<FullTrack>()
-                        .Distinct()
-                        .Select(t => t.Uri)
-                        .ToList()
+                    .Select(t => t.Track)
+                    .OfType<FullTrack>()
+                    .Distinct()
+                    .Select(t => t.Uri)
+                    .ToList()
                 };
-
                 library.TryAdd(pl.Id, pl);
                 
             }
-            return library.Values.Select(p => new PlaylistMix(p.Id, 0.0, p.Name)).ToList();
+            return library.Values.Select(p => new PlaylistMix(p.Id, 0.0, p.Name)).ToList(); // important to return a NEW list
         }
 
         // ------------------------------
         // --- Service Timer Callback ---
         // ------------------------------
 
-        private async void ServiceCallback(object? sender, ElapsedEventArgs e)
+        private async void ServiceCallbackAsync(object? sender, ElapsedEventArgs e)
         {
             var retry = false;
             do
@@ -103,7 +104,7 @@ namespace GDJ.Service
         private async Task GetNextAsync(CancellationToken cancellationToken = default)
         {
             var nextPlaylistId = GetNextPlaylistId();
-            var randTrackUri = GetRandTrackUri(nextPlaylistId, cancellationToken);
+            var randTrackUri = GetRandTrackUri(nextPlaylistId);
 
             // Check if the random track is already in the queue
             var q = (await client.Player.GetQueue(cancellationToken)).Queue; // TODO: reduce API calls by caching the queue
@@ -116,18 +117,18 @@ namespace GDJ.Service
 
             try
             {
-                await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrackUri), cancellationToken); // <-- TODO: This always throws an exception. See Issue #2
+                await client.Player.AddToQueue(new PlayerAddToQueueRequest(randTrackUri), cancellationToken); 
             }
             catch (JsonReaderException e)
             {
-                Console.WriteLine(e.Message);
+                Console.WriteLine(e.Message); // <-- TODO: This is always caught. See Issue #2
             }
 
             activePlaylists[nextPlaylistId].NumPlayed++;
             totalSongsPlayed++;
         }
 
-        private string GetRandTrackUri(string playlistId, CancellationToken cancellationToken = default)
+        private string GetRandTrackUri(string playlistId)
         {
             var items = library[playlistId].TrackUris;
 
