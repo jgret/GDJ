@@ -30,7 +30,7 @@ public class Program
 
     public static void TestAssignMixRatios(List<PlaylistMix> pl)
     {
-        int maxRand = 1000000;
+        int maxRand = 1000000; // Precision
         int rand;
 
         foreach (var item in pl)
@@ -53,7 +53,7 @@ public class Program
 
     public static void TestFilterPlaylists(List<PlaylistMix> pl)
     {
-        pl.RemoveRange(0, 5); // Remove first 5
+        pl.RemoveRange(0, 5); // Remove first 5 (largest Playlists in Sminos Library)
     }
 
     public static async Task printWelcomeMessage(SpotifyClient client)
