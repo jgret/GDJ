@@ -8,6 +8,6 @@ namespace GDJ.Service
 {
     public interface IGDJService
     {
-        public void UpdatePlaylists(List<PlaylistMix> playlists);
+        public void UpdatePlaylists(List<Mix> m);
     }
 }

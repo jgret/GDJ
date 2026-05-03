@@ -3,6 +3,6 @@
 
 Garden DJ Software
 
-![alt text](image.png)
+![alt text](Images/image.png)
 
-![](Images/DINO_1400_transparent.png)
+![dino](Images/DINO_1400_transparent.png)

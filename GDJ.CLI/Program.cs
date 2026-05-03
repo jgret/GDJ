@@ -6,14 +6,18 @@ public class Program
 {
     public static async Task Main(string[] args)
     {
-        var clientId = Environment.GetEnvironmentVariable("GDJ_SPOTIFY_CLIENT_ID");
+        string? clientId = Environment.GetEnvironmentVariable("GDJ_SPOTIFY_CLIENT_ID");
+
+        if (clientId == null)
+            throw new ArgumentException("Please provide your client id so we can log you in to your account");
+
         GDJAuthenticator auth = new GDJAuthenticator(clientId!);
-        var client = await auth.GetSpotifyClientAsync();
+        SpotifyClient client = await auth.GetSpotifyClientAsync();
 
         await printWelcomeMessage(client);
 
-        var service = new GDJService(client);
-        var lib = await service.RefetchLibraryAsync();
+        GDJService service = new GDJService(client);
+        List<Mix> lib = await service.RefetchLibraryAsync();
 
         // set MixRatio for each playlist and return the active playlists
         // Substituted with test functions
@@ -28,7 +32,7 @@ public class Program
         }
     }
 
-    public static void TestAssignMixRatios(List<PlaylistMix> pl)
+    public static void TestAssignMixRatios(List<Mix> pl)
     {
         int maxRand = 1000000; // Precision
         int rand;
@@ -41,7 +45,7 @@ public class Program
         }
     }
 
-    public static List<PlaylistMix> TestPlaylists()
+    public static List<Mix> TestPlaylists()
     {
         return
         [
@@ -51,7 +55,7 @@ public class Program
         ];
     }
 
-    public static void TestFilterPlaylists(List<PlaylistMix> pl)
+    public static void TestFilterPlaylists(List<Mix> pl)
     {
         pl.RemoveRange(0, 5); // Remove first 5 (largest Playlists in Sminos Library)
     }

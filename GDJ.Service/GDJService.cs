@@ -1,7 +1,5 @@
 ﻿using Newtonsoft.Json;
 using SpotifyAPI.Web;
-using System.Diagnostics;
-using System.Threading.Channels;
 using System.Timers;
 
 namespace GDJ.Service
@@ -15,12 +13,11 @@ namespace GDJ.Service
         private readonly SpotifyClient client;
 
         private Dictionary<string, Playlist> library; // playlist id -> playlist with tracklist
-        private Dictionary<string, PlaylistMix> activePlaylists; // playlist id -> playlist with mix ratio
+        private Dictionary<string, Mix> activePlaylists; // playlist id -> playlist with mix ratio
         private int totalSongsPlayed;
 
-        // ------------------------------
-        // --- Service Initialization ---
-        // ------------------------------
+        // -------------------------------------------------------------------------------- 
+        // --- Service Initialization
 
         public GDJService(SpotifyClient client)
         {
@@ -36,47 +33,47 @@ namespace GDJ.Service
             totalSongsPlayed = 0;
         }
 
-        // -------------------------------
-        // --- Service Control Methods ---
-        // -------------------------------
+        // -------------------------------------------------------------------------------- 
+        // --- Service Control Methods
 
-        public void UpdatePlaylists(List<PlaylistMix> pl)
+        public void UpdatePlaylists(List<Mix> pl)
         {
             activePlaylists.Clear();
             activePlaylists = (pl ?? []).ToDictionary(p => p.Id, p => p);
-            service.Enabled = activePlaylists.Count != 0; // the service is disabled if all playlists are disabled or List is null
+            
+            // the service is disabled if all playlists are disabled or List is null
+            service.Enabled = activePlaylists.Count != 0;
         }
 
-        public async Task<List<PlaylistMix>> RefetchLibraryAsync(CancellationToken cancel = default)
+        public async Task<List<Mix>> RefetchLibraryAsync(CancellationToken cancel = default)
         {
             var playlistPage = await client.Playlists.CurrentUsers(cancel);
             var playlists = await client.PaginateAll(playlistPage, cancellationToken: cancel);
 
             foreach (FullPlaylist fp in playlists)
             {
-                var fp2 = await client.Playlists.GetItems(fp.Id!, cancel);
-                var items = await client.PaginateAll(fp2, cancellationToken: cancel);
+                var fpPages = await client.Playlists.GetItems(fp.Id!, cancel);
+                var items = await client.PaginateAll(fpPages, cancellationToken: cancel);
 
                 if (items.Count == 0) continue;
 
                 var pl = new Playlist(fp.Id!, fp.Name)
                 {
                     TrackUris = items
-                    .Select(t => t.Track)
-                    .OfType<FullTrack>()
-                    .Distinct()
-                    .Select(t => t.Uri)
-                    .ToList()
+                        .Select(t => t.Track)
+                        .OfType<FullTrack>()
+                        .Distinct()
+                        .Select(t => t.Uri)
+                        .ToList()
                 };
                 library.TryAdd(pl.Id, pl);
-                
             }
-            return library.Values.Select(p => new PlaylistMix(p.Id, 0.0, p.Name)).ToList(); // important to return a NEW list
+
+            return library.Values.Select(p => new Mix(p.Id, 0.0, p.Name)).ToList();
         }
 
-        // ------------------------------
-        // --- Service Timer Callback ---
-        // ------------------------------
+        // -------------------------------------------------------------------------------- 
+        // --- Service Timer Callback
 
         private async void ServiceCallbackAsync(object? sender, ElapsedEventArgs e)
         {
@@ -97,9 +94,8 @@ namespace GDJ.Service
             while (retry);
         }
 
-        // -----------------------------
-        // --- Service Logic Methods ---
-        // -----------------------------
+        // --------------------------------------------------------------------------------
+        // --- Service Logic Methods
 
         private async Task GetNextAsync(CancellationToken cancellationToken = default)
         {
@@ -107,11 +103,13 @@ namespace GDJ.Service
             var randTrackUri = GetRandTrackUri(nextPlaylistId);
 
             // Check if the random track is already in the queue
-            var q = (await client.Player.GetQueue(cancellationToken)).Queue; // TODO: reduce API calls by caching the queue
+            // TODO: reduce API calls by caching the queue
+            var q = (await client.Player.GetQueue(cancellationToken)).Queue; 
             if (q.OfType<FullTrack>().Any(t => t.Uri == randTrackUri))
             {
                 await GetNextAsync(cancellationToken); // Try again
-                // TODO: test with edge cases -> potential recursive loop if a playlist with only one track is enabled
+                // TODO: test with edge cases
+                // -> potential recursive loop if a playlist with only one track is enabled
                 return;
             }
 
@@ -121,7 +119,8 @@ namespace GDJ.Service
             }
             catch (JsonReaderException e)
             {
-                Console.WriteLine(e.Message); // <-- TODO: This is always caught. See Issue #2
+                // TODO: This is always caught. See Issue #2
+                Console.WriteLine(e.Message); 
             }
 
             activePlaylists[nextPlaylistId].NumPlayed++;
@@ -140,9 +139,11 @@ namespace GDJ.Service
 
         private string GetNextPlaylistId()
         {
-            return activePlaylists // Sort by the difference between mix and actual ratio
+            // Sort by the difference between mix and actual ratio
+            return activePlaylists 
                 .OrderByDescending(p => (p.Value.MixRatio * totalSongsPlayed) - p.Value.NumPlayed)
-                .First().Key;
+                .First()
+                .Key;
         }
     }
 }
