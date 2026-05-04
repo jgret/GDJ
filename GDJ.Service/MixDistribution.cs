@@ -52,11 +52,10 @@ namespace GDJ.Service
             }
         }
 
-        public string? GetNextPlaylistId()
+        public string GetNextPlaylistId()
         {
             if (mixes.Count == 0)
-                return null;
-
+                throw new MissingMemberException("Mix ratios not avaliable. Try fetching the library");
             // Sort by the difference between mix and actual ratio
             string id = mixes
                 .Values

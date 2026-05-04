@@ -81,7 +81,7 @@ namespace GDJ.Service
         private async void ServiceCallbackAsync(object? sender, ElapsedEventArgs e) {
             var retry = false;
             var nextPlaylistId = mixDistribution.GetNextPlaylistId();
-            var nextTrackUri = library[nextPlaylistId!].GetNextTrackUri();
+            var nextTrackUri = library[nextPlaylistId].GetNextTrackUri();
 
             do
             {
