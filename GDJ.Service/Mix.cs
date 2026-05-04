@@ -5,7 +5,8 @@
         public string Id { get; set; }
         public string? Name { get; set; }
         public double MixRatio { get; set; }
-        public int NumPlayed { get; set; }
+        public double NumPlayed { get; set; }
+
         public Mix(string id, double mixRatio, string? name = null)
         {
             MixRatio = mixRatio;

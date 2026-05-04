@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Caliburn.Micro" Version="5.0.258" />
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GDJ.Auth\GDJ.Auth.csproj" />
     <ProjectReference Include="..\GDJ.Service\GDJ.Service.csproj" />
   </ItemGroup>

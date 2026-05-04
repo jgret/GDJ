@@ -17,47 +17,12 @@ public class Program
         await printWelcomeMessage(client);
 
         GDJService service = new GDJService(client);
-        List<Mix> lib = await service.RefetchLibraryAsync();
-
-        // set MixRatio for each playlist and return the active playlists
-        // Substituted with test functions
-        TestFilterPlaylists(lib); // simulates en/disabling playlists
-        TestAssignMixRatios(lib); // simulates assigning slidervalues to mixratios
-
-        service.UpdatePlaylists(lib);
+        service.FetchLibraryAsync();
 
         while (true)
         {
             await Task.Delay(1000);
         }
-    }
-
-    public static void TestAssignMixRatios(List<Mix> pl)
-    {
-        int maxRand = 1000000; // Precision
-        int rand;
-
-        foreach (var item in pl)
-        {
-            rand = new Random().Next(0, maxRand);
-            item.MixRatio = rand / 1000000.0;
-            maxRand -= rand;
-        }
-    }
-
-    public static List<Mix> TestPlaylists()
-    {
-        return
-        [
-            new("5faTa2QyuNYFBMUD5IqGjL", 0.60),  // DnB Playlist from Smino
-            new("3mJgvnYuHwzbCaBue4a47r", 0.30),  // Electronic Playlist from Smino
-            new("00DG0aSn5EXOvpLhQxGxzc", 0.10),  // House Playlist from Smino
-        ];
-    }
-
-    public static void TestFilterPlaylists(List<Mix> pl)
-    {
-        pl.RemoveRange(0, 5); // Remove first 5 (largest Playlists in Sminos Library)
     }
 
     public static async Task printWelcomeMessage(SpotifyClient client)
@@ -66,6 +31,6 @@ public class Program
         Console.WriteLine($"Hello, {me.DisplayName}");
 
         var result = await client.Playlists.CurrentUsers();
-        Console.WriteLine($"You have {result.Total} PLaylists");
+        Console.WriteLine($"You have {result.Total} Playlists");
     }
 }
